@@ -1,0 +1,83 @@
+name: 'Qualflare — Upload Test Results'
+description: 'Upload CI test results to Qualflare: AI failure analysis, flaky-test detection & release-risk scoring, 23 frameworks.'
+author: 'Qualflare'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  token:
+    description: 'Qualflare API token (qf_...). Store it as an encrypted secret and pass it here.'
+    required: true
+  project:
+    description: 'Your Qualflare project identifier (the slug shown in the dashboard).'
+    required: true
+  results:
+    description: 'Path or glob to your test result files (e.g. "test-results/*.xml"). Framework is auto-detected.'
+    required: true
+  version:
+    description: 'qualflare-cli version to install (e.g. "0.1.9"). Defaults to the latest release.'
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Qualflare CLI (qf)
+      shell: bash
+      env:
+        QF_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        REPO="Qualflare/qualflare-cli"
+
+        VER="${QF_VERSION:-latest}"
+        if [ -z "$VER" ] || [ "$VER" = "latest" ]; then
+          # Resolve the latest tag via the releases/latest redirect (no jq needed)
+          VER="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" | sed 's#.*/tag/##')"
+        fi
+        VER="${VER#v}"  # strip a leading "v"
+
+        case "$(uname -s)" in
+          Linux)  OS=linux ;;
+          Darwin) OS=darwin ;;
+          MINGW*|MSYS*|CYGWIN*) OS=windows ;;
+          *) echo "::error::Unsupported OS: $(uname -s)"; exit 1 ;;
+        esac
+        case "$(uname -m)" in
+          x86_64|amd64)   ARCH=amd64 ;;
+          arm64|aarch64)  ARCH=arm64 ;;
+          *) echo "::error::Unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+
+        if [ "$OS" = "windows" ]; then EXT=zip; else EXT=tar.gz; fi
+        ASSET="qf_${VER}_${OS}_${ARCH}.${EXT}"
+        URL="https://github.com/$REPO/releases/download/v${VER}/${ASSET}"
+        echo "Installing qf ${VER} (${OS}/${ARCH}) from ${URL}"
+
+        TMP="$(mktemp -d)"
+        curl -fsSL "$URL" -o "$TMP/$ASSET"
+        cd "$TMP"
+        if [ "$EXT" = "zip" ]; then unzip -q "$ASSET"; else tar -xzf "$ASSET"; fi
+
+        QF_BIN="$(find "$TMP" -type f \( -name qf -o -name qf.exe \) | head -1)"
+        if [ -z "$QF_BIN" ]; then echo "::error::qf binary not found in $ASSET"; exit 1; fi
+        BIN_DIR="$HOME/.qualflare-bin"
+        mkdir -p "$BIN_DIR"
+        cp "$QF_BIN" "$BIN_DIR/$(basename "$QF_BIN")"
+        chmod +x "$BIN_DIR"/* || true
+        echo "$BIN_DIR" >> "$GITHUB_PATH"
+        "$BIN_DIR/$(basename "$QF_BIN")" --version || true
+
+    - name: Upload results to Qualflare
+      shell: bash
+      env:
+        QF_PROJECT: ${{ inputs.project }}
+        QF_TOKEN: ${{ inputs.token }}
+        QF_RESULTS: ${{ inputs.results }}
+      run: |
+        set -euo pipefail
+        qf login "$QF_PROJECT" "$QF_TOKEN"
+        # Unquoted so the shell expands globs like test-results/*.xml
+        # shellcheck disable=SC2086
+        qf "$QF_PROJECT" collect $QF_RESULTS
