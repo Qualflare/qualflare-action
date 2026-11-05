@@ -1,5 +1,5 @@
 name: 'Qualflare — Upload Test Results'
-description: 'Upload CI test results to Qualflare: AI failure analysis, flaky-test detection & release-risk scoring, 23 frameworks.'
+description: 'Upload CI test results to Qualflare: AI failure analysis, flaky-test detection & release-risk scoring, 27 frameworks.'
 author: 'Qualflare'
 branding:
   icon: 'check-circle'
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   token:
-    description: 'Qualflare API token (qf_...). Store it as an encrypted secret and pass it here.'
+    description: 'Qualflare project access token (qfp_...). Store it as an encrypted secret and pass it here.'
     required: true
   project:
     description: 'Your Qualflare project identifier (the slug shown in the dashboard).'
@@ -16,7 +16,7 @@ inputs:
     description: 'Path or glob to your test result files (e.g. "test-results/*.xml"). Framework is auto-detected.'
     required: true
   version:
-    description: 'qualflare-cli version to install (e.g. "0.1.9"). Defaults to the latest release.'
+    description: 'qualflare-cli version to install (e.g. "0.4.0"; 0.1.35 or later). Defaults to the latest release.'
     required: false
     default: 'latest'
 
@@ -67,7 +67,7 @@ runs:
         cp "$QF_BIN" "$BIN_DIR/$(basename "$QF_BIN")"
         chmod +x "$BIN_DIR"/* || true
         echo "$BIN_DIR" >> "$GITHUB_PATH"
-        "$BIN_DIR/$(basename "$QF_BIN")" --version || true
+        "$BIN_DIR/$(basename "$QF_BIN")" version || true
 
     - name: Upload results to Qualflare
       shell: bash
@@ -77,7 +77,10 @@ runs:
         QF_RESULTS: ${{ inputs.results }}
       run: |
         set -euo pipefail
-        qf login "$QF_PROJECT" "$QF_TOKEN"
+        # qf reads the token from QF_TOKEN, so it never appears in the process list.
+        # --force replaces the identifier a reused self-hosted runner kept from an
+        # earlier job; stdin is closed so an empty token fails instead of waiting.
+        qf login "$QF_PROJECT" --force < /dev/null
         # Unquoted so the shell expands globs like test-results/*.xml
         # shellcheck disable=SC2086
         qf "$QF_PROJECT" collect $QF_RESULTS
