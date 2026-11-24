@@ -26,7 +26,7 @@ Cleaner than scripting the CLI by hand: no `brew install`, no manual download.
 | `token` | ✅ | — | Qualflare project access token (`qfp_…`). Store as an encrypted repo/org **secret**. |
 | `project` | ✅ | — | Your Qualflare project identifier (the slug from the dashboard). |
 | `results` | ✅ | — | Path or glob to result files, e.g. `test-results/*.xml`. Framework auto-detected. |
-| `version` | | `latest` | `qualflare-cli` version to install, e.g. `0.4.0` (0.1.35 or later; earlier versions have no release download). |
+| `version` | | `latest` | `qualflare-cli` version to install, e.g. `0.7.1`. Use 0.7.1 or later: older versions authenticate with a header the API is removing, and the action warns when one is pinned. |
 
 ## Notes
 - **Runners:** Linux and macOS (amd64/arm64) are fully supported; Windows is best-effort.

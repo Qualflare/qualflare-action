@@ -16,7 +16,7 @@ inputs:
     description: 'Path or glob to your test result files (e.g. "test-results/*.xml"). Framework is auto-detected.'
     required: true
   version:
-    description: 'qualflare-cli version to install (e.g. "0.4.0"; 0.1.35 or later). Defaults to the latest release.'
+    description: 'qualflare-cli version to install (e.g. "0.7.1"; 0.7.1 or later recommended, since older versions authenticate with a header the API is removing). Defaults to the latest release.'
     required: false
     default: 'latest'
 
@@ -37,6 +37,11 @@ runs:
           VER="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" | sed 's#.*/tag/##')"
         fi
         VER="${VER#v}"  # strip a leading "v"
+        # qf before 0.7.1 sends the token in a QF_TOKEN header, which the API is removing;
+        # 0.7.1 and later send Authorization: Bearer. The secret and env var stay QF_TOKEN.
+        if [ "$(printf '%s\n' "$VER" 0.7.1 | sort -V | head -n1)" != "0.7.1" ]; then
+          echo "::warning::qf ${VER} authenticates with a header the Qualflare API is removing. Set version to 0.7.1 or later, or drop the version input to use the latest release."
+        fi
 
         case "$(uname -s)" in
           Linux)  OS=linux ;;
